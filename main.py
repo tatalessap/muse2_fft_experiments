@@ -1,16 +1,11 @@
-# This is a sample Python script.
+from fft_generate_features import *
 
-# Press Maiusc+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+sensors = ['RAW_TP9', 'RAW_AF7', 'RAW_AF8', 'RAW_TP10']
 
+path_to_file = 'res_eti_1/'
+name_to_save = 'features_fft_single/feature_by_file'
+generate_feature_sets_by_one_file(path_to_file, name_to_save, sensors)
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+path_to_file = 'res_eti_1/'
+name_to_save = 'features_fft/feature'
+generate_feature_set_by_all_files(path_to_file, name_to_save, sensors)
