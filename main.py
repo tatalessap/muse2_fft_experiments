@@ -17,7 +17,7 @@ columns = ['Delta_TP9', 'Delta_AF7', 'Delta_AF8', 'Delta_TP10',
 
 path_to_file = 'muse2_file/labeled/'
 
-name = 'sub_window_fft_freq_waves'
+name = 'sub_window_fft_with_pad_freq_waves'
 
 root_folder = 'feature_single' + name
 

@@ -4,8 +4,11 @@ import sys
 
 
 def check_folder_or_create(name_folder):
-    if not os.path.isdir(name_folder):
-        os.mkdir(name_folder)
+    path = ''
+    for folder in name_folder.split('/'):
+        path = path + folder + '/'
+        if not os.path.isdir(path):
+            os.mkdir(path)
 
 
 def numbers_max(k, x):
@@ -13,7 +16,7 @@ def numbers_max(k, x):
     values = []
     while k != 0:
         max_el = np.amax(x)
-        max_ind = int(np.where(x == max_el)[0])
+        max_ind = int(np.where(x == max_el)[0][0])
         indices.append(max_ind)
         values.append(max_el)
         x[max_ind] = np.amin(x)

@@ -36,9 +36,16 @@ def get_k_greater_freq(sub_signal, k):
     :return: feature vector by k frequency
     """
     # calculate seconds, apply black man and calculate fft
-    seconds = sub_signal.size / 256
     window = np.blackman(sub_signal.size)
-    fft_vector = np.fft.rfft(sub_signal * window)
+
+    sub_signal = sub_signal*window
+
+    if sub_signal.size < 128:
+        sub_signal = np.pad(sub_signal, (0, 128 - sub_signal.size), 'constant')
+
+    seconds = sub_signal.size / 256
+
+    fft_vector = np.fft.rfft(sub_signal)
 
     # creates frequency vector, finds the largest fft values and
     # indicates which frequencies they correspond to
@@ -74,7 +81,12 @@ def generate_feature_vectors_by_data_greater_freq(data, sensors, columns):
     annotations = [x for _, x in data.groupby(['Time Check Button'])]  # set of response
     for answer in annotations:  # for each annotated image
         if verify(answer):  # check if the image can be evaluated
-            windows = [answer[windows_size * k:windows_size * (k + 1)] for k in range(int(len(answer) / windows_size))] # Subdivide the data into sub-windows
+            number_windows = len(answer) / windows_size
+            if number_windows > int(number_windows):
+                number_windows = number_windows+1
+
+            windows = [answer[windows_size * k:windows_size * (k + 1)] for k in range(int(number_windows))] # Subdivide the data into sub-windows
+
             feature_vectors = list()
             for index_sub in range(len(windows)):
                 for sensor in sensors:

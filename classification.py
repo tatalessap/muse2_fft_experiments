@@ -1,16 +1,15 @@
-import weka
-import math
-from weka.classifiers import Classifier, PredictionOutput, KernelClassifier, Kernel, Evaluation
-import weka.core.converters as converters
-from weka.core.classes import Random
-import weka.core.jvm as jvm
-import os
-import pandas as pd
-import numpy as np
-from numpy import load
 import datetime
-from utils import *
 from collections import Counter
+
+import pandas as pd
+import weka
+import weka.core.converters as converters
+import weka.core.jvm as jvm
+from numpy import load
+from weka.classifiers import Classifier, PredictionOutput, Evaluation
+from weka.core.classes import Random
+
+from utils import *
 
 
 def java_start(path_packages):
@@ -19,6 +18,23 @@ def java_start(path_packages):
 
 def java_stop():
     jvm.stop()
+
+
+def create_prediction(buffer_save, indicator, images, name, path):
+    check_folder_or_create(path)
+
+    df = pd.DataFrame()
+    df['indicator'] = indicator
+    df['image'] = images
+    # df['label'] = buffer_save[1]
+    df['label'] = buffer_save['actual']
+    # df['prediction'] = buffer_save[2]
+    df['prediction'] = buffer_save['predicted']
+    # df['different'] = buffer_save[3]
+    df['different'] = buffer_save['error']
+    df['prediction'] = list(map(lambda x: (x[2:]), df['prediction']))
+    df['label'] = list(map(lambda x: (x[2:]), df['label']))
+    df.to_csv(path + name + 'pred_data.csv', index=False)
 
 
 def experiment_sequential_file(path_indices, path_features, path_folder_save_results, options, classifier, name,
@@ -89,19 +105,9 @@ def experiment_sequential_file(path_indices, path_features, path_folder_save_res
     with open(path_folder_save_results + '/' + 'prediction/' + name + 'pred_data.csv', 'w') as f:
         f.write(save)
 
-    if len(indicator_col) != 0:
-        save_csv = pd.read_csv(path_folder_save_results + '/' + 'prediction/' + name + 'pred_data.csv', header=None,
-                               index_col=False)
-        print(len(save_csv))
-        print(len(indicator_col))
-        save_csv['indicator'] = indicator_col
-        save_csv['image'] = images
-        save_csv = save_csv.rename(
-            columns={0: "instance", 1: "label", 2: "prediction", 4: "perc_error", 3: "different"})
-        print(save_csv.columns)
-        save_csv['prediction'] = list(map(lambda x: (x[2:]), save_csv['prediction']))
-        save_csv['label'] = list(map(lambda x: (x[2:]), save_csv['label']))
-        save_csv.to_csv(path_folder_save_results + '/' + 'prediction/' + name + 'pred_data.csv', index=False)
+    buffer_save = pd.read_csv(path_folder_save_results + '/' + 'prediction/' + name + 'pred_data.csv', index_col=False)
+
+    create_prediction(buffer_save, indicator_col, images, name, path_folder_save_results + '/prediction/')
 
     d_results = pd.DataFrame(data=d_results)
 
@@ -138,9 +144,6 @@ def experiment_file_random(path_features, path_folder_save_results, options, cla
 
 
 def experiment_more_file(path_files, path_folder_save_results, fold, options, classifier, random, name):
-    print(name + "  Start: " + str(datetime.datetime.now()))
-    time = datetime.datetime.now()
-
     cls = Classifier(classname=classifier, options=weka.core.classes.split_options(options))
 
     file_list = os.listdir(path_files)
@@ -151,10 +154,11 @@ def experiment_more_file(path_files, path_folder_save_results, fold, options, cl
 
     d_results = {'name_file': [], 'percent_correct': [], 'percent_incorrect': [], 'confusion_matrix': []}
 
-    # print(file_list)
-
     for file in file_list:
-        print(str(file))
+        indicator_table = pd.read_csv(path_files + '/indicator/' + file[:-4] + '_indicator.csv')
+        indicator = list(indicator_table['indicator'])
+        images = list(indicator_table['image'])
+
         data = converters.load_any_file(path_files + "/" + file)
 
         data.class_is_last()
@@ -172,16 +176,21 @@ def experiment_more_file(path_files, path_folder_save_results, fold, options, cl
 
         save = pout.buffer_content()
 
-        check_folder_or_create(path_folder_save_results + '/' + 'prediction')
+        check_folder_or_create(path_folder_save_results + '/' + name + '/' + 'prediction')
 
-        with open(path_folder_save_results + '/' + 'prediction/' + str(name) + str(file)[:-4] + 'pred_data.csv',
+        with open(path_folder_save_results + '/' + name + '/' + 'prediction/pred_data.csv',
                   'w') as f:
             f.write(save)
 
+        buffer_save = pd.read_csv(path_folder_save_results + '/' + name + '/' + 'prediction/pred_data.csv',
+                                  index_col=False)
+
+        create_prediction(buffer_save, indicator, images, file[:-4],
+                          path_folder_save_results + '/' + name + '/prediction/')
+
     d_results = pd.DataFrame(data=d_results)
 
-    d_results.to_csv(path_folder_save_results + '/' + str(name) + ".csv", index=False)
-    print(name + "  End: " + str(datetime.datetime.now() - time))
+    d_results.to_csv(path_folder_save_results + '/' + str(name) + ".csv")
 
 
 def check(indicator, image_labels, details_indicator):
@@ -203,7 +212,7 @@ def check(indicator, image_labels, details_indicator):
     return details_indicator, flag
 
 
-def voting_version2(path_file_prediction, folder_to_save_results):
+def voting_version_check_len(path_file_prediction, folder_to_save_results):
     predictions = [pd.read_csv(path_file_prediction + "/" + str(el), index_col=False) for el in
                    sorted(os.listdir(path_file_prediction))]
     name_files = sorted(os.listdir(path_file_prediction))
@@ -211,78 +220,56 @@ def voting_version2(path_file_prediction, folder_to_save_results):
     for i in range(len(predictions)):
         image_labels = list()
         prediction = list()
-        sign = ''
 
         details_indicator = {'over time':
-                                 {"tot": 0, 'attentive first': 0, 'distracted first': 0, 'label assigned attentive': 0, 'label assigned distracted': 0},
+                                 {"tot": 0, 'attentive first': 0, 'distracted first': 0, 'label assigned attentive': 0,
+                                  'label assigned distracted': 0},
                              'attentive':
-                                 {"tot": 0, 'attentive first': 0, 'distracted first': 0, 'label assigned attentive': 0, 'label assigned distracted': 0},
+                                 {"tot": 0, 'attentive first': 0, 'distracted first': 0, 'label assigned attentive': 0,
+                                  'label assigned distracted': 0},
                              'error-no over time':
-                                 {"tot": 0, 'attentive first': 0, 'distracted first': 0, 'label assigned attentive': 0, 'label assigned distracted': 0},
+                                 {"tot": 0, 'attentive first': 0, 'distracted first': 0, 'label assigned attentive': 0,
+                                  'label assigned distracted': 0},
                              'error-over time':
-                                 {"tot": 0, 'attentive first': 0, 'distracted first': 0, 'label assigned attentive': 0, 'label assigned distracted': 0},
+                                 {"tot": 0, 'attentive first': 0, 'distracted first': 0, 'label assigned attentive': 0,
+                                  'label assigned distracted': 0},
                              }
 
         p = predictions[i]
-        for index in range(p.shape[0]):
-            if len(image_labels) > 0:
-                if p['image'][index] != p['image'][index - 1]:
+        #print(p.columns)
 
-                    details_indicator, flag = check(p['indicator'][index - 1], image_labels, details_indicator)
+        if list(p.columns) == ['indicator', 'image', 'label', 'prediction', 'different']:
 
-                    if flag:
-                        if len(image_labels) > 4:
-                            vote = 'distracted'
-                            details_indicator[p['indicator'][index - 1]]['label assigned distracted']=\
-                                details_indicator[p['indicator'][index - 1]]['label assigned distracted']+1
+            for index in range(p.shape[0]):
+                if len(image_labels) > 0:
+                    if p['image'][index] != p['image'][index - 1]:
+
+                        details_indicator, flag = check(p['indicator'][index - 1], image_labels, details_indicator)
+
+                        if flag:
+                            if len(image_labels) > 4:
+                                vote = 'distracted'
+                                details_indicator[p['indicator'][index - 1]]['label assigned distracted'] = \
+                                    details_indicator[p['indicator'][index - 1]]['label assigned distracted'] + 1
+                            else:
+                                vote = 'attentive'
+                                details_indicator[p['indicator'][index - 1]]['label assigned attentive'] = \
+                                    details_indicator[p['indicator'][index - 1]]['label assigned attentive'] + 1
                         else:
-                            vote = 'attentive'
-                            details_indicator[p['indicator'][index - 1]]['label assigned attentive'] = \
-                            details_indicator[p['indicator'][index - 1]]['label assigned attentive'] + 1
-                    else:
-                        vote = Counter(image_labels).most_common()[0][0]
+                            vote = Counter(image_labels).most_common()[0][0]
 
-                    if vote != p['label'][index - 1]:
-                        sign = 'incorrect'
-                    else:
-                        sign = 'correct'
+                        if vote != p['label'][index - 1]:
+                            sign = 'incorrect'
+                        else:
+                            sign = 'correct'
 
-                    prediction.append(
-                        (p['image'][index - 1], p['indicator'][index - 1], p['label'][index - 1], vote, sign))
-                    image_labels = list()
+                        prediction.append(
+                            (p['image'][index - 1], p['indicator'][index - 1], p['label'][index - 1], vote, sign))
+                        image_labels = list()
 
-            image_labels.append(p['prediction'][index])
+                image_labels.append(p['prediction'][index])
 
-        df = pd.DataFrame(prediction, columns=['image', 'indicator', 'original label', 'prediction', 'status'])
-        check_folder_or_create(folder_to_save_results + '/' + 'details')
-
-        sys.stdout = open(folder_to_save_results + '/details/' + name_files[i][:-4] + '_' + "test.csv", "w")
-        print(name_files[i])
-        print('\n')
-        print('perc incorrect: ' + str((list(df['status']).count('incorrect') * 100) / df.shape[0]))
-        print('perc correct: ' + str((list(df['status']).count('correct') * 100) / df.shape[0]))
-        print('\n')
-        df.to_csv(folder_to_save_results + '/' + str(i) + 'prediction_voting.csv')
-        c = [x for _, x in df.groupby(['status'])]
-        print("Numero totale di immagini divise per indicatore:\n" + str(
-            (df[['indicator', 'image']].groupby(['indicator']).count())))
-        print('\n\n')
-        print("Numero di immagini classificate scorrettamente con indicatore:\n" + str(
-            (c[0][['indicator', 'status']].groupby(['indicator']).count())))
-        print('\n')
-        print("Numero di immagini classificate scorrettamente con label:\n" + str(
-            (c[0][['original label', 'status']].groupby(['original label']).count())))
-        print('\n\n')
-        print("Caso feature pari e nessuna classe in numero maggiore: \n")
-        print('attentive')
-        print(details_indicator['attentive'])
-        print("over time")
-        print(details_indicator['over time'])
-        print("error-no over time")
-        print(details_indicator['error-no over time'])
-        print("error-over time")
-        print(details_indicator['error-over time'])
-        sys.stdout.close()
+            create_results_voting(prediction, folder_to_save_results, name_files[i][:-4], i, details_indicator)
 
 
 def voting(path_file_prediction, folder_to_save_results):
@@ -293,7 +280,6 @@ def voting(path_file_prediction, folder_to_save_results):
     for i in range(len(predictions)):
         image_labels = list()
         prediction = list()
-        sign = ''
 
         details_indicator = {'over time':
                                  {"tot": 0, 'attentive first': 0, 'distracted first': 0},
@@ -306,51 +292,58 @@ def voting(path_file_prediction, folder_to_save_results):
                              }
 
         p = predictions[i]
-        for index in range(p.shape[0]):
-            if len(image_labels) > 0:
-                if p['image'][index] != p['image'][index - 1]:
-                    vote = Counter(image_labels).most_common()[0][0]
 
-                    details_indicator, flag = check(p['indicator'][index - 1], image_labels, details_indicator)
+        if list(p.columns) == ['indicator', 'image', 'label', 'prediction', 'different']:
 
-                    if vote != p['label'][index - 1]:
-                        sign = 'incorrect'
-                    else:
-                        sign = 'correct'
+            for index in range(p.shape[0]):
+                if len(image_labels) > 0:
+                    if p['image'][index] != p['image'][index - 1]:
+                        vote = Counter(image_labels).most_common()[0][0]
 
-                    prediction.append(
-                        (p['image'][index - 1], p['indicator'][index - 1], p['label'][index - 1], vote, sign))
-                    image_labels = list()
+                        details_indicator, flag = check(p['indicator'][index - 1], image_labels, details_indicator)
 
-            image_labels.append(p['prediction'][index])
+                        if vote != p['label'][index - 1]:
+                            sign = 'incorrect'
+                        else:
+                            sign = 'correct'
 
-        df = pd.DataFrame(prediction, columns=['image', 'indicator', 'original label', 'prediction', 'status'])
-        check_folder_or_create(folder_to_save_results + '/' + 'details')
+                        prediction.append(
+                            (p['image'][index - 1], p['indicator'][index - 1], p['label'][index - 1], vote, sign))
+                        image_labels = list()
 
-        sys.stdout = open(folder_to_save_results + '/details/' + name_files[i][:-4] + '_' + "test.csv", "w")
-        print(name_files[i])
-        print('\n')
-        print('perc incorrect: ' + str((list(df['status']).count('incorrect') * 100) / df.shape[0]))
-        print('perc correct: ' + str((list(df['status']).count('correct') * 100) / df.shape[0]))
-        print('\n')
-        df.to_csv(folder_to_save_results + '/' + str(i) + 'prediction_voting.csv')
-        c = [x for _, x in df.groupby(['status'])]
-        print("Numero totale di immagini divise per indicatore:\n" + str(
-            (df[['indicator', 'image']].groupby(['indicator']).count())))
-        print('\n\n')
-        print("Numero di immagini classificate scorrettamente con indicatore:\n" + str(
-            (c[0][['indicator', 'status']].groupby(['indicator']).count())))
-        print('\n')
-        print("Numero di immagini classificate scorrettamente con label:\n" + str(
-            (c[0][['original label', 'status']].groupby(['original label']).count())))
-        print('\n\n')
-        print("Caso feature pari e nessuna classe in numero maggiore: \n")
-        print('attentive')
-        print(details_indicator['attentive'])
-        print("over time")
-        print(details_indicator['over time'])
-        print("error-no over time")
-        print(details_indicator['error-no over time'])
-        print("error-over time")
-        print(details_indicator['error-over time'])
-        sys.stdout.close()
+                image_labels.append(p['prediction'][index])
+
+            create_results_voting(prediction, folder_to_save_results, name_files[i][:-4], i, details_indicator)
+
+
+def create_results_voting(prediction, folder_to_save_results, name_file, i, details_indicator):
+    df = pd.DataFrame(prediction, columns=['image', 'indicator', 'original label', 'prediction', 'status'])
+    check_folder_or_create(folder_to_save_results + '/details')
+
+    sys.stdout = open(folder_to_save_results + '/details/' + name_file + '_' + ".csv", "w")
+    print(name_file)
+    print('\n')
+    print('perc incorrect: ' + str((list(df['status']).count('incorrect') * 100) / df.shape[0]))
+    print('perc correct: ' + str((list(df['status']).count('correct') * 100) / df.shape[0]))
+    print('\n')
+    df.to_csv(folder_to_save_results + '/' + str(i) + 'prediction_voting.csv')
+    c = [x for _, x in df.groupby(['status'])]
+    print("Numero totale di immagini divise per indicatore:\n" + str(
+        (df[['indicator', 'image']].groupby(['indicator']).count())))
+    print('\n\n')
+    print("Numero di immagini classificate scorrettamente con indicatore:\n" + str(
+        (c[0][['indicator', 'status']].groupby(['indicator']).count())))
+    print('\n')
+    print("Numero di immagini classificate scorrettamente con label:\n" + str(
+        (c[0][['original label', 'status']].groupby(['original label']).count())))
+    print('\n\n')
+    print("Caso feature pari e nessuna classe in numero maggiore: \n")
+    print('attentive')
+    print(details_indicator['attentive'])
+    print("over time")
+    print(details_indicator['over time'])
+    print("error-no over time")
+    print(details_indicator['error-no over time'])
+    print("error-over time")
+    print(details_indicator['error-over time'])
+    sys.stdout.close()
