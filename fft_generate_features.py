@@ -38,7 +38,7 @@ def get_k_greater_freq(sub_signal, k):
     # calculate seconds, apply black man and calculate fft
     window = np.blackman(sub_signal.size)
 
-    sub_signal = sub_signal*window
+    # sub_signal = sub_signal*window
 
     if sub_signal.size < 128:
         sub_signal = np.pad(sub_signal, (0, 128 - sub_signal.size), 'constant')
@@ -82,8 +82,11 @@ def generate_feature_vectors_by_data_greater_freq(data, sensors, columns):
     for answer in annotations:  # for each annotated image
         if verify(answer):  # check if the image can be evaluated
             number_windows = len(answer) / windows_size
+
+            """
             if number_windows > int(number_windows):
                 number_windows = number_windows+1
+            """
 
             windows = [answer[windows_size * k:windows_size * (k + 1)] for k in range(int(number_windows))] # Subdivide the data into sub-windows
 
@@ -131,19 +134,36 @@ def generate_feature_vectors_by_data_pad_fft(data, sensors, columns):
     for answer in annotations:
         class_column.append(answer['label'].iloc[0])
         if 'indicator' in answer.columns:
-            indicator_column.append(answer['indicator'].iloc[0])
+            indicator_column.append((answer['indicator'].iloc[0], answer['Image'].iloc[0]))
 
         fft_all_sensors = np.array([])
 
         for sensor in sensors:
             signal = np.array(answer[sensor], dtype=float)
-            window = np.blackman(signal.size)
-            fft_vector = np.fft.rfft(pad_to(signal * window, seconds=8, fs=256))
-            fft_all_sensors = np.append(fft_all_sensors, fft_vector)  # add to feature vector of the answer
+            #window = np.blackman(signal.size)
+            fft_vector = np.abs(np.fft.rfft(pad_to(signal, seconds=8, fs=256)))
+
+            seconds = signal.size / 256
+
+            freq_vector = np.array(np.arange(0, fft_vector.size)) * (1 / seconds)
+
+            freq_vector = freq_vector[1:]
+
+            fft_vector = fft_vector[1:]
+
+            indices, values = numbers_max(10, fft_vector)
+
+            freq_feature = [freq_vector[index] for index in indices]  # feature vector
+
+            fft_all_sensors = np.append(fft_all_sensors, freq_feature)  # add to feature vector of the answer
+
+        feature_waves = list(answer[columns].mean())
+
+        feature_vector = list(feature_waves) + list(freq_feature)
 
         if len(feature_set) == 0:  # initial
-            feature_set = np.empty((0, len(fft_all_sensors)))
-        feature_set = np.vstack((feature_set, np.abs(fft_all_sensors)))
+            feature_set = np.empty((0, len(feature_vector)))
+        feature_set = np.vstack((feature_set, feature_vector))
 
     return feature_set, class_column, indicator_column
 
