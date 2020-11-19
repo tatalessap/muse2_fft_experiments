@@ -1,6 +1,17 @@
 import os
-import numpy as np
 import sys
+
+import numpy as np
+
+def signal_sub(signal):
+    """
+    Generate signals divided into subsignals in equal measure, if the last subsignal does not reach this measure is discarded.
+    :param signal: signal to be divided into sub-windows
+    :return: sub windows
+    """
+    windows_size = 128
+    windows = [signal[windows_size * k:windows_size * (k + 1)] for k in range(int(signal.size / windows_size))]
+    return windows
 
 
 def check_folder_or_create(name_folder):
@@ -39,7 +50,7 @@ def pad_to(sub_signal, seconds, fs):
 
 
 def print_info(csv, name):
-    sys.stdout = open(name+'_'+"test.txt", "w")
+    sys.stdout = open(name+'_'+".txt", "w")
     c = [x for _, x in csv.groupby(['status'])]
     print("Totale:\n" + str((csv[['indicator', 'image']].groupby(['indicator']).count())))
     print('\n')

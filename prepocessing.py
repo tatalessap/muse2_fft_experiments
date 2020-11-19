@@ -1,7 +1,9 @@
 import pandas as pd
 import os
 import datetime
-
+"""
+In this module there are the methods for the pre-processing to be implemented before the feature extraction phase
+"""
 
 def alignment(path_muse, path_note, path_save, columns):
     """

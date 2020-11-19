@@ -19,19 +19,14 @@ def java_start(path_packages):
 def java_stop():
     jvm.stop()
 
-
-def create_prediction(buffer_save, indicator, images, name, path):
+def create_prediction(col_label, col_prediction, col_different, indicator, images, name, path):
     check_folder_or_create(path)
-
     df = pd.DataFrame()
     df['indicator'] = indicator
     df['image'] = images
-    # df['label'] = buffer_save[1]
-    df['label'] = buffer_save['actual']
-    # df['prediction'] = buffer_save[2]
-    df['prediction'] = buffer_save['predicted']
-    # df['different'] = buffer_save[3]
-    df['different'] = buffer_save['error']
+    df['label'] = col_label
+    df['prediction'] = col_prediction
+    df['different'] = col_different
     df['prediction'] = list(map(lambda x: (x[2:]), df['prediction']))
     df['label'] = list(map(lambda x: (x[2:]), df['label']))
     df.to_csv(path + name + 'pred_data.csv', index=False)
@@ -39,11 +34,7 @@ def create_prediction(buffer_save, indicator, images, name, path):
 
 def experiment_sequential_file(path_indices, path_features, path_folder_save_results, options, classifier, name,
                                indicator_col, images):
-    print(name + "  Start: " + str(datetime.datetime.now()))
-    time = datetime.datetime.now()
-
     ind_f = load(path_indices)
-
     lst = ind_f.files
 
     for item in lst:
@@ -62,17 +53,12 @@ def experiment_sequential_file(path_indices, path_features, path_folder_save_res
     d_results = {'index': [], 'percent_correct': [], 'percent_incorrect': [], 'confusion_matrix': []}
 
     for j in range(len(ind) - 1):
-        print(j)
-        print(ind)
-
         first = ind[j]
 
         if j == len(ind) - 2:
             last = ind[j + 1]
         else:
             last = ind[j + 1] - 1
-
-        print(str(first) + '-' + str(last))
 
         d_test = data.subset(row_range=str(first) + '-' + str(last))
 
@@ -87,7 +73,6 @@ def experiment_sequential_file(path_indices, path_features, path_folder_save_res
             print(s)
             d_train = data.subset(row_range=s)
 
-        print("Lunghezza d_test:" + str(len(d_test)))
         cls.build_classifier(d_train)
 
         evl = Evaluation(data)
@@ -105,15 +90,17 @@ def experiment_sequential_file(path_indices, path_features, path_folder_save_res
     with open(path_folder_save_results + '/' + 'prediction/' + name + 'pred_data.csv', 'w') as f:
         f.write(save)
 
-    buffer_save = pd.read_csv(path_folder_save_results + '/' + 'prediction/' + name + 'pred_data.csv', index_col=False)
+    buffer_save = pd.read_csv(path_folder_save_results + '/' + 'prediction/' + name + 'pred_data.csv', index_col=False, header=None)
 
-    create_prediction(buffer_save, indicator_col, images, name, path_folder_save_results + '/prediction/')
+    col_label = buffer_save[1]
+    col_prediction = buffer_save[2]
+    col_different = buffer_save[3]
+
+    create_prediction(col_label, col_prediction, col_different, indicator_col, images, name, path_folder_save_results + '/prediction/')
 
     d_results = pd.DataFrame(data=d_results)
 
     d_results.to_csv(path_folder_save_results + '/' + name + 'results.csv', index=False)
-
-    print(name + "  End: " + str(datetime.datetime.now() - time))
 
 
 def experiment_file_random(path_features, path_folder_save_results, options, classifier, fold, random, name):
@@ -143,7 +130,7 @@ def experiment_file_random(path_features, path_folder_save_results, options, cla
     print(name + "  End: " + str(datetime.datetime.now() - time))
 
 
-def experiment_more_file(path_files, path_folder_save_results, fold, options, classifier, random, name):
+def experiment_more_file(path_files, path_folder_save_results, fold, options, classifier, random, name, voting=False):
     cls = Classifier(classname=classifier, options=weka.core.classes.split_options(options))
 
     file_list = os.listdir(path_files)
@@ -155,7 +142,7 @@ def experiment_more_file(path_files, path_folder_save_results, fold, options, cl
     d_results = {'name_file': [], 'percent_correct': [], 'percent_incorrect': [], 'confusion_matrix': []}
 
     for file in file_list:
-        indicator_table = pd.read_csv(path_files + '/indicator/' + file[:-4] + '_indicator.csv')
+        indicator_table = pd.read_csv(path_files + '/indicator/' + file[0] + '_indicator.csv')
         indicator = list(indicator_table['indicator'])
         images = list(indicator_table['image'])
 
@@ -185,7 +172,11 @@ def experiment_more_file(path_files, path_folder_save_results, fold, options, cl
         buffer_save = pd.read_csv(path_folder_save_results + '/' + name + '/' + 'prediction/pred_data.csv',
                                   index_col=False)
 
-        create_prediction(buffer_save, indicator, images, file[:-4],
+        col_label = buffer_save['actual']
+        col_prediction = buffer_save['predicted']
+        col_different = buffer_save['error']
+
+        create_prediction(col_label, col_prediction, col_different, indicator, images, file[:-4],
                           path_folder_save_results + '/' + name + '/prediction/')
 
     d_results = pd.DataFrame(data=d_results)
@@ -293,7 +284,7 @@ def voting(path_file_prediction, folder_to_save_results):
 
         p = predictions[i]
 
-        if list(p.columns) == ['indicator', 'image', 'label', 'prediction', 'different']:
+        if list(p.columns) == ['indicator', 'image', 'label', 'prediction', 'different'] or list(p.columns) == ['instance','label','prediction','different','perc_error','indicator','image']:
 
             for index in range(p.shape[0]):
                 if len(image_labels) > 0:
