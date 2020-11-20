@@ -43,7 +43,7 @@ to_save = folder_experiments + '/feature_all/'
 
 check_folder_or_create(to_save)
 
-generate_feature_set_by_all_files(path_to_file, to_save, sensors, columns, pad=True, greater_freq=True, num_freq=10, drop=1)
+# generate_feature_set_by_all_files(path_to_file, to_save, sensors, columns, pad=True, greater_freq=True, num_freq=10, drop=1)
 
 """
 Classification
@@ -58,6 +58,9 @@ path_indices = 'index.npz'
 path_packages = '/home/tatalessap/wekafiles/packages'
 
 java_start(path_packages)
-experiment_B(root_folder, path_features, path_info, path_indices)
-java_stop()
+#experiment_B(root_folder, path_features, path_info, path_indices)
 
+
+path_features = folder_experiments + '/feature_single'
+experiment_D(root_folder, path_features)
+java_stop()

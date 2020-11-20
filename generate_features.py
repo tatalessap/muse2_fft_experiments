@@ -37,8 +37,8 @@ def generate_feature_sets_by_one_file(path_to_file, to_save, sensors, columns=No
         features.to_csv(to_save + str(index) + 'features.csv', index=False)
 
         indicator = pd.DataFrame()
-        indicator['indicator'] = np.array([indicator[0] for indicator in class_column])
-        indicator['image'] = np.array([indicator[1] for indicator in class_column])
+        indicator['indicator'] = np.array([indicator[0] for indicator in indicator_column])
+        indicator['image'] = np.array([indicator[1] for indicator in indicator_column])
         indicator.to_csv(path_to_save_info + str(index) + '_indicator' + '.csv', index=False)
 
 
